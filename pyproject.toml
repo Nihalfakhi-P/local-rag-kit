@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "local-rag-kit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Private, fully local RAG service: hybrid retrieval, cited answers, grounding guardrails and offline evaluation."
 readme = "README.md"
 license = "MIT"
