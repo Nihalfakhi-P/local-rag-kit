@@ -5,7 +5,7 @@ import pytest
 
 from ragkit.evaluate import evaluate_answers, evaluate_retrieval, format_report, load_cases
 from ragkit.ollama import OllamaEmbedder, OllamaError, OllamaLLM
-from tests.conftest import EXAMPLES, make_pipeline
+from tests.conftest import EXAMPLES, FakeLLM, make_pipeline
 
 
 def test_load_cases_defaults_to_answerable():
@@ -13,6 +13,9 @@ def test_load_cases_defaults_to_answerable():
     assert len(cases) == 19
     assert sum(not c.answerable for c in cases) == 4
     assert cases[0].expected_sources == ["leave-policy.md"]
+    assert cases[0].must_include == ["24 days"]
+    assert all(c.must_include for c in cases if c.answerable)
+    assert all(not c.must_include for c in cases if not c.answerable)
 
 
 def test_retrieval_metrics_on_sample_corpus(loaded):
@@ -36,9 +39,33 @@ def test_answer_metrics_and_report():
     assert answers["unanswerable_refused"] == 0.0
     assert answers["citation_validity"] == 1.0
     assert answers["behaviour_accuracy"] == 15 / 19
+    # ...but its canned reply contains none of the expected facts.
+    assert answers["accuracy_cases"] == 15
+    assert answers["answer_accuracy"] == 0.0
     text = format_report(evaluate_retrieval(rag, cases, 5), answers)
     assert "hit rate@5" in text and "valid citations" in text
     assert "wrong: What is the capital of Australia? -> answered" in text
+    assert "correct content         0%  (15 checked)" in text
+    assert "incorrect: What is the minimum password length?" in text
+
+
+def test_answer_accuracy_checks_content_with_alternatives():
+    def reply(user_prompt: str) -> str:
+        if "password" in user_prompt.lower().split("question:")[-1]:
+            return "Passwords must be at least 14 characters [1]."
+        return "Pension is matched up to 5% of base salary [1]."
+
+    rag = make_pipeline(FakeLLM(reply), min_similarity=0.0)
+    rag.ingest_path(EXAMPLES / "docs")
+    cases = [
+        c
+        for c in load_cases(EXAMPLES / "eval.jsonl")
+        if "password" in c.question or "pension" in c.question
+    ]
+    answers = evaluate_answers(rag, cases)
+    # "5%" satisfies the "5 percent|5%|five percent" alternatives.
+    assert answers["answer_accuracy"] == 1.0
+    assert answers["accuracy_cases"] == 2
 
 
 def _client(handler) -> httpx.Client:

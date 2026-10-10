@@ -3,7 +3,8 @@ from dataclasses import dataclass
 
 REFUSAL = "I don't know based on the provided documents."
 
-_CITATION = re.compile(r"\[(\d+)\]")
+# "[2]" as instructed, plus prose forms small models fall back to: "source 2", "source #2".
+_CITATION = re.compile(r"\[(\d+)\]|\bsources?\s*#?\s*(\d+)\b", re.IGNORECASE)
 # Tags that delimit sources in the prompt; a document must not be able to forge or close them.
 _PROMPT_TAGS = re.compile(r"</?\s*(?:context|source)\b[^>]*>", re.IGNORECASE)
 
@@ -17,7 +18,7 @@ def extract_citations(answer: str) -> list[int]:
     """Unique citation numbers in order of first appearance."""
     seen: dict[int, None] = {}
     for match in _CITATION.finditer(answer):
-        seen.setdefault(int(match.group(1)), None)
+        seen.setdefault(int(match.group(1) or match.group(2)), None)
     return list(seen)
 
 

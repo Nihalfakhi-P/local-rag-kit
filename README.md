@@ -21,7 +21,7 @@ It's built around what usually goes wrong in RAG systems: wrong chunks retrieved
 | **Grounding check** | Citations are parsed and validated against the retrieved sources. An answer that cites a source that doesn't exist, or cites nothing, is flagged `grounded: false`. In strict mode it's replaced by a refusal. |
 | **Relevance gate** | If no chunk is similar enough to the question, the service refuses *without calling the LLM*. That's cheaper and avoids made-up answers on off-topic questions. |
 | **Prompt-injection hardening** | Retrieved text is stripped of prompt-structure tags, so a document can't close `</context>` and smuggle in instructions. The system prompt also treats all context as data. |
-| **Offline evaluation** | `ragkit eval` measures retrieval (hit rate@k, MRR) and answer behaviour: answers what it should, refuses what it can't, cites correctly. |
+| **Offline evaluation** | `ragkit eval` measures retrieval (hit rate@k, MRR) and answer behaviour: answers what it should, refuses what it can't, cites its sources, and states the expected facts. |
 | **Idempotent ingestion** | Re-ingesting a file replaces its chunks. Chunk IDs are content hashes. |
 | **Clear failures** | If Ollama is down, the API returns 503 and the CLI exits 1, with the exact fix (`ollama serve`, `ollama pull <model>`). |
 
@@ -64,17 +64,21 @@ ragkit ingest examples/docs
 ragkit ask "My VPN shows error E-4021, what should I do?"
 ```
 
-Example output (wording varies by model):
+Real output from `llama3.2` (wording varies between runs):
 
 ```text
-Your device certificate has expired; open the Northwind Device app, click
-"Renew certificate", then reconnect [1].
+To resolve the VPN error E-4021, which indicates that your device certificate has
+expired, open the Northwind Device app and click "Renew certificate", then reconnect [1][2].
 
 Sources:
- *[1] it-security.md (chunk 2)
-  [2] it-security.md (chunk 3)
-  ...
+ *[1] it-security.md (chunk 1)
+ *[2] it-security.md (chunk 0)
+  [3] it-security.md (chunk 2)
+  [4] onboarding.md (chunk 1)
+  [5] expenses.md (chunk 0)
 ```
+
+`*` marks the sources the answer actually cites.
 
 Questions the documents can't answer get a refusal instead of a guess:
 
@@ -121,33 +125,57 @@ The response above illustrates the shape; actual wording and scores depend on yo
 
 ## Evaluation
 
-[`examples/eval.jsonl`](examples/eval.jsonl) has 19 questions over the sample handbook: 15 answerable, each labelled with the file that holds the answer, and 4 the documents can't answer.
+[`examples/eval.jsonl`](examples/eval.jsonl) has 19 questions over the sample handbook. 15 are answerable, and each is labelled with the file that holds the answer and the facts a correct answer must contain. The other 4 can't be answered from the documents.
 
 ```bash
 ragkit eval examples/eval.jsonl                    # retrieval + answers (calls the LLM)
 ragkit eval examples/eval.jsonl --retrieval-only   # retrieval only, fast
 ```
 
+### Measured results
+
+`llama3.2` (3B) answering, `nomic-embed-text` embeddings, default settings, running locally. Two runs gave identical results (about 2 minutes each):
+
 ```text
 Retrieval  (15 answerable questions, k=5)
-  hit rate@5   ...
-  MRR          ...
+  hit rate@5   100%
+  MRR          1.000
 
 Answers    (19 questions)
-  correct answer/refuse   ...
-  answerable answered     ...
-  unanswerable refused    ...
-  valid citations         ...
+  correct answer/refuse   100%
+  answerable answered     100%
+  unanswerable refused    100%
+  valid citations         93%
+  correct content         100%  (15 checked)
 ```
 
-Use your own JSONL file in the same format to evaluate your documents. Re-run it whenever you change chunk size, models, `top_k` or the similarity threshold, so tuning is measured rather than guessed:
+What the numbers mean:
+
+- **Every answer was factually correct,** and every off-topic question was refused: *"What is the capital of Australia?"* was stopped by the relevance gate before any LLM call, and *"What is Northwind's annual revenue?"* was refused by the model.
+- **One answer in 15 had no citation.** The home-office budget answer was right but cited nothing. The grounding check flagged it, which is its job. With `RAG_STRICT_GROUNDING=true` it becomes a refusal instead.
+- **Retrieval is perfect here because the corpus is small** (4 documents, 9 chunks). Expect lower numbers on real corpora; that's what the eval is for.
+
+### How the default threshold was chosen
+
+The best dense similarity per question with `nomic-embed-text`:
+
+| | Lowest | Highest |
+|---|---|---|
+| Answerable questions | 0.604 | 0.836 |
+| Unanswerable questions | 0.510 | 0.710 |
+
+The ranges overlap: *"annual revenue"* is on-topic for a company handbook even though no document has the number. So no threshold separates them perfectly. The default of **0.55** gates the clearly off-topic question, keeps a margin below the lowest answerable score, and leaves the rest to the model's own refusal. That's two layers of protection rather than one threshold tuned too tightly.
+
+### Your own documents
+
+Write a JSONL file in the same format and re-run the eval whenever you change chunk size, models, `top_k` or the threshold, so tuning is measured rather than guessed:
 
 ```json
-{"question": "...", "expected_sources": ["file.md"]}
+{"question": "...", "expected_sources": ["file.md"], "must_include": ["24 days", "5 percent|5%"]}
 {"question": "...", "answerable": false}
 ```
 
-> **Tuning `RAG_MIN_SIMILARITY`:** the right threshold depends on the embedding model. Run the eval and raise the threshold until unanswerable questions are refused without answerable ones being dropped.
+`must_include` entries are case-insensitive substrings; `a|b` accepts either alternative.
 
 ## Configuration
 
@@ -160,7 +188,7 @@ All settings are `RAG_*` environment variables (or a `.env` file); see [`.env.ex
 | `RAG_QUERY_PREFIX` / `RAG_DOCUMENT_PREFIX` | `search_query: ` / `search_document: ` | Task prefixes nomic expects; set both to empty for other models |
 | `RAG_CHUNK_SIZE` / `RAG_CHUNK_OVERLAP` | `800` / `120` | Characters per chunk / shared between neighbours |
 | `RAG_TOP_K` / `RAG_CANDIDATE_K` | `5` / `20` | Chunks sent to the LLM / candidates per retriever before fusion |
-| `RAG_MIN_SIMILARITY` | `0.45` | Relevance gate threshold (cosine) |
+| `RAG_MIN_SIMILARITY` | `0.55` | Relevance gate threshold (cosine) |
 | `RAG_STRICT_GROUNDING` | `false` | Replace answers that fail the citation check with a refusal |
 | `RAG_PERSIST_DIR` | `.ragkit/chroma` | Where the vector index lives |
 
@@ -193,7 +221,7 @@ src/ragkit/
   api.py         FastAPI service
   evaluate.py    hit rate@k, MRR, refusal and citation metrics
   cli.py         ragkit ingest | ask | eval | serve
-tests/           52 tests, 96% coverage
+tests/           54 tests, 96% coverage
 examples/        sample handbook (fictional) + evaluation set
 ```
 

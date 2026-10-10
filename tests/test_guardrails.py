@@ -14,6 +14,13 @@ def test_extract_citations_unique_in_order():
     assert extract_citations("no citations") == []
 
 
+def test_extract_citations_accepts_prose_forms():
+    assert extract_citations("According to source #2, it locks [1].") == [2, 1]
+    assert extract_citations("Sources 3 and Source 1 agree.") == [3, 1]
+    assert extract_citations("We source 25 percent of parts locally.") == [25]
+    assert extract_citations("The resource 4 is unrelated; open-source code too.") == []
+
+
 def test_refusal_detection_tolerates_curly_apostrophes():
     assert is_refusal(REFUSAL)
     assert is_refusal("I don\u2019t know based on the provided documents.")

@@ -1,18 +1,18 @@
-{"question": "How many days of paid annual leave do full-time employees get?", "expected_sources": ["leave-policy.md"]}
-{"question": "How many unused leave days can I carry over, and when do they expire?", "expected_sources": ["leave-policy.md"]}
-{"question": "When do I need a medical certificate for sick leave?", "expected_sources": ["leave-policy.md"]}
-{"question": "How long is parental leave for a secondary caregiver?", "expected_sources": ["leave-policy.md"]}
-{"question": "What is the deadline for submitting an expense claim?", "expected_sources": ["expenses.md"]}
-{"question": "What is the hotel limit per night in London?", "expected_sources": ["expenses.md"]}
-{"question": "Can I fly business class?", "expected_sources": ["expenses.md"]}
-{"question": "What is the home office equipment budget?", "expected_sources": ["expenses.md"]}
-{"question": "My VPN shows error E-4021, what should I do?", "expected_sources": ["it-security.md"]}
-{"question": "What does VPN error E-4033 mean?", "expected_sources": ["it-security.md"]}
-{"question": "How quickly must I report a stolen laptop?", "expected_sources": ["it-security.md"]}
-{"question": "What is the minimum password length?", "expected_sources": ["it-security.md"]}
-{"question": "How long is the probation period?", "expected_sources": ["onboarding.md"]}
-{"question": "Which trainings must new joiners finish in their first two weeks?", "expected_sources": ["onboarding.md"]}
-{"question": "How much does the company match on pension contributions?", "expected_sources": ["onboarding.md"]}
+{"question": "How many days of paid annual leave do full-time employees get?", "expected_sources": ["leave-policy.md"], "must_include": ["24 days"]}
+{"question": "How many unused leave days can I carry over, and when do they expire?", "expected_sources": ["leave-policy.md"], "must_include": ["5|five", "march 31"]}
+{"question": "When do I need a medical certificate for sick leave?", "expected_sources": ["leave-policy.md"], "must_include": ["2 consecutive|two consecutive"]}
+{"question": "How long is parental leave for a secondary caregiver?", "expected_sources": ["leave-policy.md"], "must_include": ["6 weeks|six weeks"]}
+{"question": "What is the deadline for submitting an expense claim?", "expected_sources": ["expenses.md"], "must_include": ["30 days"]}
+{"question": "What is the hotel limit per night in London?", "expected_sources": ["expenses.md"], "must_include": ["260"]}
+{"question": "Can I fly business class?", "expected_sources": ["expenses.md"], "must_include": ["vice president"]}
+{"question": "What is the home office equipment budget?", "expected_sources": ["expenses.md"], "must_include": ["600"]}
+{"question": "My VPN shows error E-4021, what should I do?", "expected_sources": ["it-security.md"], "must_include": ["renew certificate"]}
+{"question": "What does VPN error E-4033 mean?", "expected_sources": ["it-security.md"], "must_include": ["locked"]}
+{"question": "How quickly must I report a stolen laptop?", "expected_sources": ["it-security.md"], "must_include": ["1 hour|one hour"]}
+{"question": "What is the minimum password length?", "expected_sources": ["it-security.md"], "must_include": ["14"]}
+{"question": "How long is the probation period?", "expected_sources": ["onboarding.md"], "must_include": ["3 months|three months"]}
+{"question": "Which trainings must new joiners finish in their first two weeks?", "expected_sources": ["onboarding.md"], "must_include": ["security awareness", "code of conduct"]}
+{"question": "How much does the company match on pension contributions?", "expected_sources": ["onboarding.md"], "must_include": ["5 percent|5%|five percent"]}
 {"question": "What is the capital of Australia?", "answerable": false}
 {"question": "What is Northwind Robotics' annual revenue?", "answerable": false}
 {"question": "Does the company offer a gym membership?", "answerable": false}

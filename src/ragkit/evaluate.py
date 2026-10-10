@@ -12,6 +12,9 @@ class EvalCase:
     question: str
     expected_sources: list[str] = field(default_factory=list)
     answerable: bool = True
+    # Case-insensitive substrings a correct answer must contain, e.g. ["24 days"].
+    # "a|b" accepts either alternative, e.g. ["5 percent|5%"].
+    must_include: list[str] = field(default_factory=list)
 
 
 def load_cases(path: Path) -> list[EvalCase]:
@@ -24,6 +27,7 @@ def load_cases(path: Path) -> list[EvalCase]:
                     question=row["question"],
                     expected_sources=row.get("expected_sources", []),
                     answerable=row.get("answerable", True),
+                    must_include=row.get("must_include", []),
                 )
             )
     return cases
@@ -47,10 +51,11 @@ def evaluate_retrieval(pipeline: RAGPipeline, cases: list[EvalCase], k: int) -> 
 
 
 def evaluate_answers(pipeline: RAGPipeline, cases: list[EvalCase]) -> dict:
-    """Does the system answer what it should, refuse what it can't, and cite correctly?"""
+    """Does the system answer what it should, refuse what it can't, cite, and get it right?"""
     rows = []
     for case in cases:
         answer = pipeline.ask(case.question)
+        text = answer.text.lower()
         rows.append(
             {
                 "question": case.question,
@@ -58,10 +63,15 @@ def evaluate_answers(pipeline: RAGPipeline, cases: list[EvalCase]) -> dict:
                 "refused": answer.refused,
                 "grounded": answer.grounded,
                 "correct_behaviour": answer.refused != case.answerable,
+                # None when the case defines no expected content.
+                "correct": all(_contains_any(text, s) for s in case.must_include)
+                if case.must_include and not answer.refused
+                else None,
                 "answer": answer.text,
             }
         )
     answered = [r for r in rows if not r["refused"]]
+    checked = [r for r in answered if r["correct"] is not None]
     n = len(rows) or 1
     return {
         "cases": len(rows),
@@ -71,8 +81,14 @@ def evaluate_answers(pipeline: RAGPipeline, cases: list[EvalCase]) -> dict:
         "citation_validity": (sum(r["grounded"] for r in answered) / len(answered))
         if answered
         else 1.0,
+        "answer_accuracy": (sum(r["correct"] for r in checked) / len(checked)) if checked else None,
+        "accuracy_cases": len(checked),
         "rows": rows,
     }
+
+
+def _contains_any(text: str, alternatives: str) -> bool:
+    return any(alt.strip().lower() in text for alt in alternatives.split("|"))
 
 
 def _ratio(rows: list[dict], where, metric) -> float:
@@ -97,9 +113,19 @@ def format_report(retrieval: dict, answers: dict | None) -> str:
             f"  unanswerable refused    {answers['unanswerable_refused']:.0%}",
             f"  valid citations         {answers['citation_validity']:.0%}",
         ]
+        if answers["answer_accuracy"] is not None:
+            lines.append(
+                f"  correct content         {answers['answer_accuracy']:.0%}"
+                f"  ({answers['accuracy_cases']} checked)"
+            )
         lines += [
             f"  wrong: {r['question']} -> {'refused' if r['refused'] else 'answered'}"
             for r in answers["rows"]
             if not r["correct_behaviour"]
+        ]
+        lines += [
+            f"  incorrect: {r['question']} -> {r['answer'][:80]}"
+            for r in answers["rows"]
+            if r["correct"] is False
         ]
     return "\n".join(lines)

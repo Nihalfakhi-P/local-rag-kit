@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     top_k: int = 5
     candidate_k: int = 20
     # Relevance gate: refuse without calling the LLM when the best dense match is below this.
-    min_similarity: float = 0.45
+    min_similarity: float = 0.55
 
     # Guardrails: replace answers with invalid or missing citations by a refusal.
     strict_grounding: bool = False
